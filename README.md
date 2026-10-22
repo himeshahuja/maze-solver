@@ -3,6 +3,8 @@
 
 This is a Python implementation of a maze generator and solver. Develop massive mazes, solve them using various algorithms, and compare the costs of each algorithm on each size of maze.
 
+**▶ Play it in your browser:** https://himeshahuja.github.io/MazeSolver/
+
 https://github.com/user-attachments/assets/c4603ecd-d20c-40c2-b61d-a52c758de9a4
 
 ## Requirements
@@ -39,7 +41,7 @@ MazeSolver/
 
 1. Clone the repository.
 ```sh
-git clone https://github.com/meshhi13/MazeSolver
+git clone https://github.com/himeshahuja/MazeSolver
 ```
 2. Navigate to the project directory.
 ```sh

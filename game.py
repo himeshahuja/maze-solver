@@ -1,3 +1,4 @@
+import asyncio
 import pygame
 import random
 import sys
@@ -6,7 +7,7 @@ from settings import *
 import time
 from objects import *
 
-def game_loop(state, rows, cols, algo, path):
+async def game_loop(state, rows, cols, algo, path):
     tilesize = WIDTH // cols
 
     path = []
@@ -101,16 +102,16 @@ def game_loop(state, rows, cols, algo, path):
                     if STATE_GENERATE and not STATE_SOLVE:
                         match grid.algo:
                             case "DFS":
-                                path, cost = grid.recursive_dfs(current_cell, [current_cell], tilesize)
+                                path, cost = await grid.recursive_dfs(current_cell, [current_cell], tilesize)
                             case "BFS":
-                                path, cost = grid.iterative_bfs(current_cell, [current_cell], tilesize)
+                                path, cost = await grid.iterative_bfs(current_cell, [current_cell], tilesize)
                                 path.reverse()
                             case "A*":
-                                path, cost = grid.a_star(current_cell, [current_cell], tilesize)
+                                path, cost = await grid.a_star(current_cell, [current_cell], tilesize)
                                 path.reverse()
 
                         if path:
-                            grid.draw_path_line(path, tilesize)
+                            await grid.draw_path_line(path, tilesize)
                             pygame.display.update()
 
                         STATE_SOLVE = True
@@ -130,3 +131,4 @@ def game_loop(state, rows, cols, algo, path):
 
         pygame.display.flip()
         clock.tick(60)
+        await asyncio.sleep(0)

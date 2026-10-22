@@ -1,16 +1,19 @@
+import asyncio
 import pygame
 import sys
 from settings import *
 from gamestate import *
 from menuitems import MenuItems
 
-def menu_loop(state):
+async def menu_loop(state):
     menu_items = [
         MenuItems("PLAY", False, None),
         MenuItems(f"SIZE: {state.rows}", False, None),
         MenuItems(f"ALGORITHM: {state.algorithm}", False, None),
-        MenuItems("QUIT", False, None)
     ]
+    # Quitting would just freeze the page in the browser build.
+    if sys.platform != "emscripten":
+        menu_items.append(MenuItems("QUIT", False, None))
     
     while True:
         screen.fill(BGCOLOR)
@@ -53,4 +56,5 @@ def menu_loop(state):
 
         pygame.display.update()
         clock.tick(30)
+        await asyncio.sleep(0)
 

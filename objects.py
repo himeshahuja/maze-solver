@@ -1,3 +1,4 @@
+import asyncio
 import pygame
 from settings import *
 import time
@@ -94,7 +95,7 @@ class Grid():
                 j.neighbors = []
                 j.draw(tilesize)
 
-    def draw_path_line(self, path, tilesize):
+    async def draw_path_line(self, path, tilesize):
         if len(path) < 2:
             return
 
@@ -107,12 +108,12 @@ class Grid():
             y2 = cell2.y + tilesize // 2
             pygame.draw.line(screen, (0, 255, 0), (x1, y1), (x2, y2), tilesize // 10)
             pygame.display.update()
-            time.sleep(0.02)
+            await asyncio.sleep(0.02)
 
     def heuristic(self, a, b):
         return abs(a.x - b.x) + abs(a.y - b.y)
 
-    def a_star(self, current, solution, tilesize):
+    async def a_star(self, current, solution, tilesize):
         g_score = {current: 0}
 
         pq = PriorityQueue()
@@ -126,8 +127,8 @@ class Grid():
             node.searched = True
             node.draw(tilesize)
             self.a_star_cost += 1
-            time.sleep(0.04)
             pygame.display.update()
+            await asyncio.sleep(0.04)
 
             if node.end:
                 while node:
@@ -147,19 +148,19 @@ class Grid():
         return solution, self.a_star_cost
 
 
-    def iterative_bfs(self, current, solution, tilesize):
+    async def iterative_bfs(self, current, solution, tilesize):
         solution = []
         queue = [current]
         visited = [current]
 
         while queue:
             self.bfs_cost += 1
-            time.sleep(0.04)
             node = queue.pop(0)
 
             node.searched = True
             node.draw(tilesize)
             pygame.display.update()
+            await asyncio.sleep(0.04)
             node.addNeighbors(tilesize)
             
             if node.end:
@@ -177,20 +178,20 @@ class Grid():
 
         return solution, self.bfs_cost
 
-    def recursive_dfs(self, current, solution, tilesize):
+    async def recursive_dfs(self, current, solution, tilesize):
         self.dfs_cost += 1
-        time.sleep(0.04)
         current.searched = True
         current.draw(tilesize)
         current.addNeighbors(tilesize)
 
         pygame.display.update()
+        await asyncio.sleep(0.04)
 
         if current.end:
             return solution, self.dfs_cost
 
         for neighbor in current.neighbors:
-            result = self.recursive_dfs(neighbor, solution + [neighbor], tilesize)
+            result = await self.recursive_dfs(neighbor, solution + [neighbor], tilesize)
             if result:
                 return result
         
