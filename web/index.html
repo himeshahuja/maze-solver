@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maze Generator &amp; Solver</title>
+  <style>
+    :root {
+      --bg: #f4f3ef;
+      --surface: #ffffff;
+      --text: #1d1d1f;
+      --muted: #6e6e73;
+      --border: #e2e0da;
+      --wall: #2b2b2e;
+      --floor: #fbfaf7;
+      --carve: #e9e6df;
+      --head: #f5b83d;
+      --searched: rgba(47, 111, 237, 0.16);
+      --frontier: rgba(47, 111, 237, 0.45);
+      --path: #2f6fed;
+      --start: #1f9d55;
+      --end: #e5484d;
+      --ok: #1f9d55;
+      --warn: #b4540d;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111214;
+        --surface: #1a1b1f;
+        --text: #ececee;
+        --muted: #9a9aa2;
+        --border: #2a2b31;
+        --wall: #d6d6dc;
+        --floor: #17181c;
+        --carve: #23252b;
+        --head: #f5b83d;
+        --searched: rgba(108, 156, 255, 0.18);
+        --frontier: rgba(108, 156, 255, 0.5);
+        --path: #6c9cff;
+        --start: #4ade80;
+        --end: #ff6b6f;
+        --ok: #4ade80;
+        --warn: #f0a35e;
+        color-scheme: dark;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+    main { width: 100%; max-width: 980px; display: grid; grid-template-columns: 1fr 280px; gap: 24px; align-items: start; }
+    @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+
+    header { grid-column: 1 / -1; }
+    h1 { margin: 0; font-size: 26px; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { margin: 4px 0 0; color: var(--muted); }
+
+    .stage {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      justify-content: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+    }
+    canvas { display: block; max-width: 100%; }
+
+    aside { display: flex; flex-direction: column; gap: 18px; }
+    .group { display: flex; flex-direction: column; gap: 8px; }
+    .label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+
+    .segmented { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--carve); border-radius: 10px; padding: 3px; gap: 3px; }
+    .segmented button { height: 32px; border: 0; background: transparent; color: var(--muted); }
+    .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+    select, button {
+      height: 36px;
+      padding: 0 14px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    select { width: 100%; }
+    button:hover:not(:disabled), select:hover { border-color: var(--muted); }
+    .segmented button:hover { border-color: transparent; color: var(--text); }
+    button.primary { background: var(--text); border-color: var(--text); color: var(--bg); }
+    button.primary:hover:not(:disabled) { opacity: 0.88; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--path); outline-offset: 2px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    input[type="range"] { width: 100%; accent-color: var(--path); }
+
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+    .stat .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    .stat .k { font-size: 12px; color: var(--muted); }
+
+    .status { min-height: 1.4em; color: var(--muted); margin: 0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+    th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+    td { padding: 7px 6px; border-bottom: 1px solid var(--border); }
+    td:not(:first-child), th:not(:first-child) { text-align: right; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover td { background: var(--carve); }
+    .best { color: var(--ok); font-weight: 600; }
+    .worse { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Maze Generator &amp; Solver</h1>
+      <p class="sub">Carve a random maze, then watch depth-first search, breadth-first search and A* find the way out.</p>
+    </header>
+
+    <div class="stage"><canvas id="maze"></canvas></div>
+
+    <aside>
+      <div class="group">
+        <span class="label">Maze</span>
+        <select id="size" aria-label="Maze size"></select>
+        <button id="generate" class="primary">New maze</button>
+      </div>
+
+      <div class="group">
+        <span class="label">Solver</span>
+        <div class="segmented" role="group" aria-label="Algorithm" id="algos"></div>
+        <div class="row">
+          <button id="solve">Solve</button>
+          <button id="compare">Compare all</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">Speed</span>
+        <input type="range" id="speed" min="1" max="8" value="4" aria-label="Animation speed">
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="v" id="visited">0</div><div class="k">cells searched</div></div>
+        <div class="stat"><div class="v" id="length">–</div><div class="k">path length</div></div>
+      </div>
+      <p class="status" id="status"></p>
+
+      <table id="results" hidden>
+        <thead><tr><th>Algorithm</th><th>Searched</th><th>Path</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </aside>
+  </main>
+
+  <script>
+    const SIZES = [8, 16, 24, 32, 40];
+    const ALGOS = {
+      dfs: { name: 'DFS', full: 'Depth-first search' },
+      bfs: { name: 'BFS', full: 'Breadth-first search' },
+      astar: { name: 'A*', full: 'A* (Manhattan)' },
+    };
+    const SPEEDS = [1, 2, 3, 5, 8, 14, 30, 80]; // steps per frame
+
+    // Walls as bits on each cell.
+    const N = 1, E = 2, S = 4, W = 8;
+    const DIRS = [[N, -1, 0, S], [E, 0, 1, W], [S, 1, 0, N], [W, 0, -1, E]];
+
+    const $ = (id) => document.getElementById(id);
+    const canvas = $('maze');
+    const ctx = canvas.getContext('2d');
+
+    let n = 16;
+    let walls;          // Uint8Array of wall bits
+    let carved;         // cells reached by the generator
+    let genHead = -1;
+    let searched;       // 0 none, 1 frontier, 2 searched
+    let path = [];
+    let pathT = 1;
+    let job = null;     // the running generator (maze or search)
+    let algo = 'astar';
+    let ready = false;  // a finished maze exists
+    let cell = 20;
+    const results = new Map();
+
+    const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    // --- Setup ------------------------------------------------------------------
+
+    for (const s of SIZES) $('size').add(new Option(`${s} × ${s}`, s));
+    $('size').value = '16';
+    for (const [key, a] of Object.entries(ALGOS)) {
+      const b = document.createElement('button');
+      b.textContent = a.name;
+      b.title = a.full;
+      b.dataset.algo = key;
+      b.setAttribute('aria-pressed', key === algo);
+      b.addEventListener('click', () => selectAlgo(key));
+      $('algos').appendChild(b);
+    }
+
+    function selectAlgo(key) {
+      algo = key;
+      document.querySelectorAll('#algos button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.algo === key));
+    }
+
+    function sizeCanvas() {
+      const stageWidth = canvas.parentElement.clientWidth - 30;
+      const avail = Math.min(stageWidth, window.innerHeight - 200, 680);
+      cell = Math.max(8, Math.floor(avail / n));
+      const px = cell * n + 2;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = px * dpr;
+      canvas.height = px * dpr;
+      canvas.style.width = `${px}px`;
+      canvas.style.height = `${px}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    // --- Maze generation (recursive backtracker, same as the Python version) ---------
+
+    function* generate() {
+      const stack = [0];
+      carved[0] = 1;
+      while (stack.length) {
+        const cur = stack[stack.length - 1];
+        genHead = cur;
+        const r = Math.floor(cur / n);
+        const c = cur % n;
+        const options = DIRS.filter(([, dr, dc]) => {
+          const rr = r + dr, cc = c + dc;
+          return rr >= 0 && rr < n && cc >= 0 && cc < n && !carved[rr * n + cc];
+        });
+        if (options.length) {
+          const [bit, dr, dc, opposite] = options[Math.floor(Math.random() * options.length)];
+          const next = (r + dr) * n + (c + dc);
+          walls[cur] &= ~bit;
+          walls[next] &= ~opposite;
+          carved[next] = 1;
+          stack.push(next);
+        } else {
+          stack.pop();
+        }
+        yield;
+      }
+      genHead = -1;
+    }
+
+    // --- Solvers -----------------------------------------------------------------------
+
+    function open(i) {
+      const r = Math.floor(i / n);
+      const c = i % n;
+      const out = [];
+      for (const [bit, dr, dc] of DIRS) if (!(walls[i] & bit)) out.push((r + dr) * n + (c + dc));
+      return out;
+    }
+
+    function trace(prev, end) {
+      const p = [];
+      for (let v = end; v !== -1; v = prev[v]) p.push(v);
+      return p.reverse();
+    }
+
+    function* dfs(mark) {
+      const goal = n * n - 1;
+      const prev = new Int32Array(n * n).fill(-1);
+      const seen = new Uint8Array(n * n);
+      const stack = [0];
+      while (stack.length) {
+        const u = stack.pop();
+        if (seen[u]) continue;
+        seen[u] = 1;
+        mark(u, 2);
+        yield;
+        if (u === goal) return trace(prev, goal);
+        for (const v of open(u)) if (!seen[v]) { prev[v] = u; stack.push(v); mark(v, 1); }
+      }
+      return [];
+    }
+
+    function* bfs(mark) {
+      const goal = n * n - 1;
+      const prev = new Int32Array(n * n).fill(-1);
+      const seen = new Uint8Array(n * n);
+      const queue = [0];
+      seen[0] = 1;
+      for (let h = 0; h < queue.length; h++) {
+        const u = queue[h];
+        mark(u, 2);
+        yield;
+        if (u === goal) return trace(prev, goal);
+        for (const v of open(u)) if (!seen[v]) { seen[v] = 1; prev[v] = u; queue.push(v); mark(v, 1); }
+      }
+      return [];
+    }
+
+    function* astar(mark) {
+      const goal = n * n - 1;
+      const h = (i) => (n - 1 - Math.floor(i / n)) + (n - 1 - (i % n));
+      const g = new Float64Array(n * n).fill(Infinity);
+      const prev = new Int32Array(n * n).fill(-1);
+      const done = new Uint8Array(n * n);
+      const heap = [[h(0), 0]];
+      g[0] = 0;
+      const push = (item) => {
+        heap.push(item);
+        let i = heap.length - 1;
+        while (i > 0) {
+          const p = (i - 1) >> 1;
+          if (heap[p][0] <= heap[i][0]) break;
+          [heap[p], heap[i]] = [heap[i], heap[p]];
+          i = p;
+        }
+      };
+      const pop = () => {
+        const top = heap[0];
+        const last = heap.pop();
+        if (heap.length) {
+          heap[0] = last;
+          let i = 0;
+          for (;;) {
+            const l = 2 * i + 1, r = l + 1;
+            let m = i;
+            if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
+            if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
+            if (m === i) break;
+            [heap[m], heap[i]] = [heap[i], heap[m]];
+            i = m;
+          }
+        }
+        return top[1];
+      };
+      while (heap.length) {
+        const u = pop();
+        if (done[u]) continue;
+        done[u] = 1;
+        mark(u, 2);
+        yield;
+        if (u === goal) return trace(prev, goal);
+        for (const v of open(u)) {
+          if (g[u] + 1 < g[v]) { g[v] = g[u] + 1; prev[v] = u; push([g[v] + h(v), v]); mark(v, 1); }
+        }
+      }
+      return [];
+    }
+
+    const SOLVERS = { dfs, bfs, astar };
+
+    // Runs a solver to completion without drawing, for the comparison table.
+    function measure(key) {
+      let count = 0;
+      const gen = SOLVERS[key](() => {});
+      let r;
+      while (!(r = gen.next()).done) count++;
+      return { searched: count, length: Math.max(0, r.value.length - 1) };
+    }
+
+    // --- Running jobs ------------------------------------------------------------------
+
+    function newMaze() {
+      cancelJob();
+      n = +$('size').value;
+      walls = new Uint8Array(n * n).fill(N | E | S | W);
+      carved = new Uint8Array(n * n);
+      searched = new Uint8Array(n * n);
+      path = [];
+      ready = false;
+      results.clear();
+      renderResults();
+      setStats(0, null);
+      setStatus('Carving…');
+      sizeCanvas();
+      job = { gen: generate(), onDone: () => { ready = true; setStatus('Maze ready. Pick a solver.'); updateButtons(); } };
+      updateButtons();
+    }
+
+    function solve(key = algo) {
+      if (!ready) return;
+      cancelJob();
+      selectAlgo(key);
+      searched = new Uint8Array(n * n);
+      path = [];
+      let count = 0;
+      const gen = SOLVERS[key]((i, state) => {
+        if (state === 2) count++;
+        if (searched[i] < state) searched[i] = state;
+      });
+      setStatus(`Running ${ALGOS[key].full}…`);
+      job = {
+        gen,
+        onStep: () => setStats(count, null),
+        onDone: (result) => {
+          path = result;
+          pathT = 0;
+          setStats(count, path.length - 1);
+          results.set(key, { searched: count, length: path.length - 1 });
+          renderResults(key);
+          setStatus(`${ALGOS[key].full} searched ${count} of ${n * n} cells.`);
+        },
+      };
+      updateButtons();
+    }
+
+    function compareAll() {
+      if (!ready) return;
+      for (const key of Object.keys(SOLVERS)) results.set(key, measure(key));
+      renderResults();
+      setStatus('Click a row to replay that solver.');
+    }
+
+    function cancelJob() {
+      job = null;
+      genHead = -1;
+    }
+
+    function frame() {
+      if (job) {
+        const steps = SPEEDS[$('speed').value - 1];
+        for (let i = 0; i < steps && job; i++) {
+          const r = job.gen.next();
+          if (r.done) {
+            const done = job.onDone;
+            job = null;
+            done && done(r.value);
+            updateButtons();
+          }
+        }
+        job && job.onStep && job.onStep();
+      }
+      if (pathT < 1) pathT = Math.min(1, pathT + 1 / 30);
+      draw();
+      requestAnimationFrame(frame);
+    }
+
+    // --- Drawing ----------------------------------------------------------------------
+
+    function draw() {
+      const size = cell * n + 2;
+      ctx.clearRect(0, 0, size, size);
+      const floor = css('--floor');
+      const carve = css('--carve');
+      const searchedCol = css('--searched');
+      const frontierCol = css('--frontier');
+
+      ctx.save();
+      ctx.translate(1, 1);
+      for (let i = 0; i < n * n; i++) {
+        const x = (i % n) * cell;
+        const y = Math.floor(i / n) * cell;
+        ctx.fillStyle = carved[i] ? floor : carve;
+        ctx.fillRect(x, y, cell, cell);
+        if (searched[i]) {
+          ctx.fillStyle = searched[i] === 2 ? searchedCol : frontierCol;
+          ctx.fillRect(x, y, cell, cell);
+        }
+      }
+
+      // Start and goal.
+      const pad = Math.max(2, cell * 0.22);
+      ctx.fillStyle = css('--start');
+      roundRect(pad, pad, cell - 2 * pad, cell - 2 * pad, cell * 0.18);
+      ctx.fillStyle = css('--end');
+      roundRect((n - 1) * cell + pad, (n - 1) * cell + pad, cell - 2 * pad, cell - 2 * pad, cell * 0.18);
+
+      if (genHead >= 0) {
+        ctx.fillStyle = css('--head');
+        roundRect((genHead % n) * cell + pad, Math.floor(genHead / n) * cell + pad, cell - 2 * pad, cell - 2 * pad, cell * 0.18);
+      }
+
+      // Walls.
+      ctx.beginPath();
+      for (let i = 0; i < n * n; i++) {
+        const x = (i % n) * cell;
+        const y = Math.floor(i / n) * cell;
+        if (walls[i] & N) { ctx.moveTo(x, y); ctx.lineTo(x + cell, y); }
+        if (walls[i] & W) { ctx.moveTo(x, y); ctx.lineTo(x, y + cell); }
+        if ((i % n === n - 1) && (walls[i] & E)) { ctx.moveTo(x + cell, y); ctx.lineTo(x + cell, y + cell); }
+        if ((i >= n * (n - 1)) && (walls[i] & S)) { ctx.moveTo(x, y + cell); ctx.lineTo(x + cell, y + cell); }
+      }
+      ctx.strokeStyle = css('--wall');
+      ctx.lineWidth = Math.max(1, cell * 0.08);
+      ctx.lineCap = 'square';
+      ctx.stroke();
+
+      // Solution path.
+      if (path.length > 1) {
+        const segs = Math.max(1, Math.floor(pathT * (path.length - 1)));
+        ctx.beginPath();
+        const center = (i) => [(i % n) * cell + cell / 2, Math.floor(i / n) * cell + cell / 2];
+        ctx.moveTo(...center(path[0]));
+        for (let k = 1; k <= segs; k++) ctx.lineTo(...center(path[k]));
+        ctx.strokeStyle = css('--path');
+        ctx.lineWidth = Math.max(2, cell * 0.24);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+      ctx.fill();
+    }
+
+    // --- UI -------------------------------------------------------------------------------
+
+    function setStats(visited, length) {
+      $('visited').textContent = visited.toLocaleString();
+      $('length').textContent = length == null ? '–' : length.toLocaleString();
+    }
+
+    function setStatus(text) { $('status').textContent = text; }
+
+    function updateButtons() {
+      $('solve').disabled = !ready;
+      $('compare').disabled = !ready;
+    }
+
+    function renderResults(active) {
+      const table = $('results');
+      const body = table.querySelector('tbody');
+      body.replaceChildren();
+      table.hidden = !results.size;
+      if (!results.size) return;
+      const best = Math.min(...[...results.values()].map((r) => r.searched));
+      const shortest = Math.min(...[...results.values()].map((r) => r.length));
+      for (const key of Object.keys(ALGOS)) {
+        const r = results.get(key);
+        if (!r) continue;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${ALGOS[key].name}</td>
+          <td class="${r.searched === best ? 'best' : ''}">${r.searched}</td>
+          <td class="${r.length === shortest ? '' : 'worse'}">${r.length}</td>`;
+        if (key === active) tr.style.fontWeight = '600';
+        tr.addEventListener('click', () => solve(key));
+        body.appendChild(tr);
+      }
+    }
+
+    $('generate').addEventListener('click', newMaze);
+    $('size').addEventListener('change', newMaze);
+    $('solve').addEventListener('click', () => solve());
+    $('compare').addEventListener('click', compareAll);
+    window.addEventListener('resize', () => sizeCanvas());
+
+    newMaze();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
