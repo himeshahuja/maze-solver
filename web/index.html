@@ -203,7 +203,6 @@
     for (const [key, a] of Object.entries(ALGOS)) {
       const b = document.createElement('button');
       b.textContent = a.name;
-      b.title = a.full;
       b.dataset.algo = key;
       b.setAttribute('aria-pressed', key === algo);
       b.addEventListener('click', () => selectAlgo(key));
@@ -382,7 +381,7 @@
       setStats(0, null);
       setStatus('Carving…');
       sizeCanvas();
-      job = { gen: generate(), onDone: () => { ready = true; setStatus('Maze ready. Pick a solver.'); updateButtons(); } };
+      job = { gen: generate(), onDone: () => { ready = true; setStatus(''); updateButtons(); } };
       updateButtons();
     }
 
@@ -417,7 +416,7 @@
       if (!ready) return;
       for (const key of Object.keys(SOLVERS)) results.set(key, measure(key));
       renderResults();
-      setStatus('Click a row to replay that solver.');
+      setStatus('');
     }
 
     function cancelJob() {
